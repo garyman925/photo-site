@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>婚礼摄影作品集</title>
+    <!-- 引入 Google 字体 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Mrs+Saint+Delafield&display=swap" rel="stylesheet">
+    <!-- 引入 AOS 动画库 -->
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <!-- 引入 Lightbox 库用于图片查看 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/css/lightbox.min.css" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f8f8f8;
+            color: #333;
+        }
+        
+        header {
+            padding: 20px;
+            text-align: center;
+            background-color: transparent;
+            color: #fff;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: fixed;
+            top: 0;
+            z-index: 100;
+        }
+        
+        h1 {
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+        
+        .gallery {
+            padding: 0;
+            max-width: 100%;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0;
+        }
+        
+        .gallery-item {
+            margin-bottom: 0;
+            position: relative;
+            overflow: hidden;
+            border-radius: 0;
+            background-color: #000;
+            aspect-ratio: 1 / 1;
+        }
+        
+        .gallery-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: transform 0.5s ease;
+        }
+        
+        .gallery-item:hover img {
+            transform: scale(1.03);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+            color: #666;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: rgba(0,0,0,0.5);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 99;
+        }
+        
+        .back-to-top.visible {
+            opacity: 1;
+        }
+        
+        /* 淡入淡出动画 */
+        .fade-in {
+            opacity: 0;
+            transition: opacity 0.5s ease-in;
+        }
+        
+        .fade-in.visible {
+            opacity: 1;
+        }
+        .logo-text {
+            font-family: 'Mrs Saint Delafield', cursive;
+            font-size: 42px;
+            font-weight: normal;
+            letter-spacing: 1px;
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1 class="logo-text">Bon Cheung Photography</h1>
+    </header>
+    
+    <div class="gallery" id="gallery">
+        <!-- 图片将通过JavaScript动态加载 -->
+    </div>
+    
+    <div class="loading" id="loading">
+        <p>加载更多...</p>
+    </div>
+    
+    <a href="#" class="back-to-top" id="backToTop">↑</a>
+
+    <!-- 引入 AOS 动画库 -->
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <!-- 引入 Lightbox 库 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/js/lightbox-plus-jquery.min.js"></script>
+    <!-- 引入 Intersection Observer 用于懒加载 -->
+    <script>
+        // 初始化 AOS 动画
+        AOS.init({
+            duration: 800,
+            easing: 'ease-out',
+            once: false
+        });
+        
+        // 图片数据 - 使用更稳定的图片源
+        const imageUrls = [
+            'https://picsum.photos/800/1000?random=1',
+            'https://picsum.photos/800/1200?random=2',
+            'https://picsum.photos/800/900?random=3',
+            'https://picsum.photos/800/1100?random=4',
+            'https://picsum.photos/800/800?random=5',
+            'https://picsum.photos/800/1000?random=6',
+            'https://picsum.photos/800/1300?random=7',
+            'https://picsum.photos/800/900?random=8',
+            'https://picsum.photos/800/1000?random=9',
+            'https://picsum.photos/800/1200?random=10',
+            'https://picsum.photos/800/800?random=11',
+            'https://picsum.photos/800/1100?random=12',
+            'https://picsum.photos/800/900?random=13',
+            'https://picsum.photos/800/1000?random=14',
+            'https://picsum.photos/800/1200?random=15',
+            'https://picsum.photos/800/900?random=16',
+            'https://picsum.photos/800/1100?random=17',
+            'https://picsum.photos/800/800?random=18',
+            'https://picsum.photos/800/1000?random=19',
+            'https://picsum.photos/800/1300?random=20',
+            'https://picsum.photos/800/900?random=21',
+            'https://picsum.photos/800/1000?random=22',
+            'https://picsum.photos/800/1200?random=23',
+            'https://picsum.photos/800/800?random=24'
+        ];
+        
+        // 当前已加载的图片索引
+        let currentIndex = 0;
+        // 每次加载的图片数量
+        const batchSize = 6;
+        // 是否正在加载
+        let isLoading = false;
+        
+        // 加载图片函数
+        function loadImages() {
+            if (isLoading) return;
+            if (currentIndex >= imageUrls.length) {
+                document.getElementById('loading').style.display = 'none';
+                return;
+            }
+            
+            isLoading = true;
+            const gallery = document.getElementById('gallery');
+            
+            // 计算本批次要加载的图片
+            const endIndex = Math.min(currentIndex + batchSize, imageUrls.length);
+            
+            // 使用setTimeout创建流水式加载效果
+            function loadImageWithDelay(index) {
+                if (index >= endIndex) {
+                    currentIndex = endIndex;
+                    isLoading = false;
+                    return;
+                }
+                
+                const item = document.createElement('div');
+                item.className = 'gallery-item fade-in';
+                item.setAttribute('data-aos', 'fade-up');
+                
+                const link = document.createElement('a');
+                link.href = imageUrls[index];
+                link.setAttribute('data-lightbox', 'wedding-gallery');
+                link.setAttribute('data-title', `婚礼照片 ${index + 1}`);
+                
+                const img = document.createElement('img');
+                img.className = 'lazy';
+                img.src = imageUrls[index];
+                img.alt = `婚礼照片 ${index + 1}`;
+                
+                // 图片加载完成后显示
+                img.onload = function() {
+                    setTimeout(() => {
+                        item.classList.add('visible');
+                    }, 100);
+                };
+                
+                link.appendChild(img);
+                item.appendChild(link);
+                gallery.appendChild(item);
+                
+                // 递归调用，加载下一张图片，添加随机延迟
+                setTimeout(() => {
+                    loadImageWithDelay(index + 1);
+                }, 200 + Math.random() * 300); // 200-500ms的随机延迟
+            }
+            
+            // 开始流水式加载
+            loadImageWithDelay(currentIndex);
+        }
+        
+        // 初始加载
+        document.addEventListener('DOMContentLoaded', loadImages);
+        
+        // 滚动加载更多
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting && !isLoading) {
+                    loadImages();
+                }
+            });
+        }, { rootMargin: '200px' });
+        
+        observer.observe(document.getElementById('loading'));
+        
+        // 返回顶部按钮
+        const backToTopButton = document.getElementById('backToTop');
+        
+        window.addEventListener('scroll', () => {
+            if (window.pageYOffset > 300) {
+                backToTopButton.classList.add('visible');
+            } else {
+                backToTopButton.classList.remove('visible');
+            }
+        });
+        
+        backToTopButton.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        
+        // 配置 Lightbox
+        lightbox.option({
+            'resizeDuration': 300,
+            'wrapAround': true,
+            'albumLabel': "图片 %1 / %2"
+        });
+    </script>
+</body>
+</html> 
