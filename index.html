@@ -51,6 +51,24 @@
             gap: 0;
         }
         
+        /* 响应式布局 - 平板设备 */
+        @media (max-width: 768px) {
+            .gallery {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        /* 响应式布局 - 手机设备 */
+        @media (max-width: 480px) {
+            .gallery {
+                grid-template-columns: 1fr;
+            }
+            
+            .logo-text {
+                font-size: 32px !important;
+            }
+        }
+        
         .gallery-item {
             margin-bottom: 0;
             position: relative;
@@ -58,6 +76,13 @@
             border-radius: 0;
             background-color: #000;
             aspect-ratio: 1 / 1;
+        }
+        
+        /* 在手机上调整图片比例 */
+        @media (max-width: 480px) {
+            .gallery-item {
+                aspect-ratio: 1 / 1.2;
+            }
         }
         
         .gallery-item img {
@@ -85,6 +110,16 @@
             transition: opacity 0.3s ease;
             text-align: left;
             pointer-events: none;
+        }
+        
+        /* 在手机上始终显示描述 */
+        @media (max-width: 480px) {
+            .image-desc {
+                opacity: 1;
+                background: linear-gradient(transparent, rgba(0,0,0,0.7));
+                width: 100%;
+                padding: 20px 15px 15px;
+            }
         }
         
         .image-desc h3 {
@@ -293,8 +328,18 @@
                 const files = response.result.files;
                 if (files && files.length > 0) {
                     // 将文件ID转换为可访问的URL
-                    imageUrls = files.map(file => `https://drive.google.com/uc?export=view&id=${file.id}`);
-                    // 加载图片
+                    imageUrls = files.map(file => {
+                        return {
+                            url: file.mimeType.includes('png') 
+                                ? `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${API_KEY}`
+                                : `https://lh3.googleusercontent.com/d/${file.id}`,
+                            name: file.name,
+                            // 从文件名中提取标题和描述（假设格式为"标题 - 描述.jpg"）
+                            title: file.name.split('.')[0].split(' - ')[0] || file.name,
+                            desc: file.name.split('.')[0].split(' - ')[1] || ''
+                        };
+                    });
+                    
                     loadImages();
                 } else {
                     document.getElementById('gallery').innerHTML = '<p>未找到图片</p>';
@@ -327,35 +372,41 @@
                     return;
                 }
                 
+                const imageData = imageUrls[index];
+                
                 const item = document.createElement('div');
                 item.className = 'gallery-item fade-in';
                 item.setAttribute('data-aos', 'fade-up');
                 
                 const link = document.createElement('a');
-                link.href = imageUrls[index];
+                link.href = imageData.url;
                 link.setAttribute('data-lightbox', 'wedding-gallery');
                 
-                // 确保描述索引不超出范围
-                const descIndex = index % imageDescriptions.length;
-                link.setAttribute('data-title', `${imageDescriptions[descIndex].title} - ${imageDescriptions[descIndex].desc}`);
+                // 使用图片对象中的标题和描述
+                const title = imageData.title || '婚礼照片';
+                const desc = imageData.desc || '';
+                
+                link.setAttribute('data-title', desc ? `${title} - ${desc}` : title);
                 
                 const img = document.createElement('img');
                 img.className = 'lazy';
-                img.src = imageUrls[index];
-                img.alt = imageDescriptions[descIndex].title;
+                img.src = imageData.url;
+                img.alt = title;
                 
                 // 添加描述元素
                 const descDiv = document.createElement('div');
                 descDiv.className = 'image-desc';
                 
-                const title = document.createElement('h3');
-                title.textContent = imageDescriptions[descIndex].title;
+                const titleElem = document.createElement('h3');
+                titleElem.textContent = title;
                 
-                const desc = document.createElement('p');
-                desc.textContent = imageDescriptions[descIndex].desc;
+                const descElem = document.createElement('p');
+                descElem.textContent = desc;
                 
-                descDiv.appendChild(title);
-                descDiv.appendChild(desc);
+                descDiv.appendChild(titleElem);
+                if (desc) {
+                    descDiv.appendChild(descElem);
+                }
                 
                 // 图片加载完成后显示
                 img.onload = function() {
@@ -387,8 +438,15 @@
                 // 添加更多文件ID...
             ];
             
-            // 转换为直接访问URL
-            imageUrls = fileIds.map(id => `https://lh3.googleusercontent.com/d/${id}`);
+            // 转换为对象数组，与fetchDriveFolder函数生成的格式相同
+            imageUrls = fileIds.map(id => {
+                return {
+                    url: `https://lh3.googleusercontent.com/d/${id}`,
+                    name: `图片${id}`,
+                    title: `婚礼照片`,
+                    desc: ``
+                };
+            });
             
             // 加载图片
             loadImages();
@@ -444,7 +502,7 @@
         
         // 使用fetch API获取Google Drive文件夹内容
         function fetchDriveFolder() {
-            // 添加更多参数以提高成功率
+            // 添加更多参数以提高成功率，并请求文件名
             const folderUrl = `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,mimeType)&key=${API_KEY}`;
             
             console.log('请求URL:', folderUrl);
@@ -463,17 +521,22 @@
                 .then(data => {
                     console.log('获取到的文件数据:', data);
                     if (data.files && data.files.length > 0) {
-                        // 使用导出功能获取图片
-                        imageUrls = data.files
-                            .filter(file => file.mimeType.includes('image/'))
-                            .map(file => {
-                                // 根据文件类型选择合适的URL格式
-                                if (file.mimeType.includes('png')) {
-                                    return `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${API_KEY}`;
-                                } else {
-                                    return `https://lh3.googleusercontent.com/d/${file.id}`;
-                                }
-                            });
+                        // 过滤图片文件并保存文件名
+                        const imageFiles = data.files.filter(file => file.mimeType.includes('image/'));
+                        
+                        // 创建包含URL和文件名的对象数组
+                        imageUrls = imageFiles.map(file => {
+                            return {
+                                url: file.mimeType.includes('png') 
+                                    ? `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${API_KEY}`
+                                    : `https://lh3.googleusercontent.com/d/${file.id}`,
+                                name: file.name,
+                                // 从文件名中提取标题和描述（假设格式为"标题 - 描述.jpg"）
+                                title: file.name.split('.')[0].split(' - ')[0] || file.name,
+                                desc: file.name.split('.')[0].split(' - ')[1] || ''
+                            };
+                        });
+                        
                         loadImages();
                     } else {
                         document.getElementById('gallery').innerHTML = '<p>未找到图片</p>';
