@@ -65,11 +65,41 @@
             height: 100%;
             object-fit: cover;
             display: block;
-            transition: transform 0.5s ease;
+            transition: transform 0.5s ease, opacity 0.3s ease;
         }
         
         .gallery-item:hover img {
             transform: scale(1.03);
+            opacity: 0.8;
+        }
+        
+        /* 添加图片描述样式 */
+        .image-desc {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            padding: 15px;
+            color: white;
+            z-index: 2;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            text-align: left;
+            pointer-events: none;
+        }
+        
+        .image-desc h3 {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+        
+        .image-desc p {
+            font-size: 14px;
+            margin: 0;
+        }
+        
+        .gallery-item:hover .image-desc {
+            opacity: 1;
         }
         
         .loading {
@@ -139,6 +169,7 @@
     <!-- 引入 Lightbox 库 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lightbox2/2.11.3/js/lightbox-plus-jquery.min.js"></script>
     <!-- 引入 Intersection Observer 用于懒加载 -->
+    <script src="https://apis.google.com/js/api.js"></script>
     <script>
         // 初始化 AOS 动画
         AOS.init({
@@ -147,32 +178,41 @@
             once: false
         });
         
-        // 图片数据 - 使用更稳定的图片源
-        const imageUrls = [
-            'https://picsum.photos/800/1000?random=1',
-            'https://picsum.photos/800/1200?random=2',
-            'https://picsum.photos/800/900?random=3',
-            'https://picsum.photos/800/1100?random=4',
-            'https://picsum.photos/800/800?random=5',
-            'https://picsum.photos/800/1000?random=6',
-            'https://picsum.photos/800/1300?random=7',
-            'https://picsum.photos/800/900?random=8',
-            'https://picsum.photos/800/1000?random=9',
-            'https://picsum.photos/800/1200?random=10',
-            'https://picsum.photos/800/800?random=11',
-            'https://picsum.photos/800/1100?random=12',
-            'https://picsum.photos/800/900?random=13',
-            'https://picsum.photos/800/1000?random=14',
-            'https://picsum.photos/800/1200?random=15',
-            'https://picsum.photos/800/900?random=16',
-            'https://picsum.photos/800/1100?random=17',
-            'https://picsum.photos/800/800?random=18',
-            'https://picsum.photos/800/1000?random=19',
-            'https://picsum.photos/800/1300?random=20',
-            'https://picsum.photos/800/900?random=21',
-            'https://picsum.photos/800/1000?random=22',
-            'https://picsum.photos/800/1200?random=23',
-            'https://picsum.photos/800/800?random=24'
+        // Google Drive API配置
+        const CLIENT_ID = '779942564960-sqgu1dq506847gbjvb52g3htajoet8gq.apps.googleusercontent.com';
+        const API_KEY = 'AIzaSyAxKOOFpyN9J1iiyWv8Jl7Xe0GPgjVYsew';
+        const FOLDER_ID = '1VF4QVbc7uAczq4YDf8wQD-XOhQvsinno';
+        const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+        const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
+        
+        let imageUrls = [];
+        
+        // 图片描述数据
+        const imageDescriptions = [
+            { title: '浪漫时刻', desc: '捕捉最甜蜜的瞬间' },
+            { title: '永恒誓言', desc: '爱的承诺，一生相伴' },
+            { title: '幸福合影', desc: '记录美好的回忆' },
+            { title: '甜蜜对视', desc: '眼中只有彼此的世界' },
+            { title: '婚礼现场', desc: '精心布置的浪漫场景' },
+            { title: '幸福时光', desc: '珍贵的婚礼瞬间' },
+            { title: '爱的誓言', desc: '执子之手，与子偕老' },
+            { title: '浪漫之吻', desc: '爱情最美的表达' },
+            { title: '温馨合照', desc: '家人的祝福与见证' },
+            { title: '婚礼细节', desc: '每个细节都充满爱意' },
+            { title: '幸福笑容', desc: '最真挚的情感流露' },
+            { title: '浪漫场景', desc: '梦幻般的婚礼布置' },
+            { title: '甜蜜瞬间', desc: '记录爱的点滴' },
+            { title: '永恒回忆', desc: '值得珍藏一生的照片' },
+            { title: '幸福时刻', desc: '爱情最美的样子' },
+            { title: '温馨时光', desc: '与挚爱共度的美好' },
+            { title: '浪漫氛围', desc: '爱的氛围无处不在' },
+            { title: '婚礼仪式', desc: '庄重而神圣的时刻' },
+            { title: '幸福合影', desc: '记录完美的一天' },
+            { title: '爱的见证', desc: '亲友共同的祝福' },
+            { title: '甜蜜时光', desc: '爱情最美的模样' },
+            { title: '浪漫场景', desc: '如梦如幻的婚礼现场' },
+            { title: '幸福时刻', desc: '永远铭记于心的瞬间' },
+            { title: '温馨合照', desc: '爱的故事由此开始' }
         ];
         
         // 当前已加载的图片索引
@@ -181,6 +221,76 @@
         const batchSize = 6;
         // 是否正在加载
         let isLoading = false;
+        
+        // 安全措施 - 检查请求来源
+        function checkOrigin() {
+            const allowedOrigins = ['localhost', '127.0.0.1', 'bon-cheung-website.com']; // 替换为您的实际域名
+            const currentOrigin = window.location.hostname;
+            
+            if (!allowedOrigins.includes(currentOrigin)) {
+                console.error('未授权的访问来源');
+                return false;
+            }
+            return true;
+        }
+        
+        // 初始化Google API客户端
+        function initClient() {
+            // 安全检查
+            if (!checkOrigin()) {
+                document.getElementById('gallery').innerHTML = '<p>访问被拒绝</p>';
+                return;
+            }
+            
+            gapi.client.init({
+                apiKey: API_KEY,
+                clientId: CLIENT_ID,
+                discoveryDocs: DISCOVERY_DOCS,
+                scope: SCOPES
+            }).then(function() {
+                // 监听登录状态变化
+                gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
+                // 处理初始登录状态
+                updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+            }).catch(function(error) {
+                console.error('初始化Google API客户端时出错:', error);
+                document.getElementById('gallery').innerHTML = '<p>加载失败，请稍后再试</p>';
+            });
+        }
+        
+        // 更新登录状态
+        function updateSigninStatus(isSignedIn) {
+            if (isSignedIn) {
+                // 用户已登录，获取文件夹内容
+                listFilesInFolder();
+            } else {
+                // 用户未登录，显示登录按钮
+                const gallery = document.getElementById('gallery');
+                gallery.innerHTML = '<div class="login-prompt"><button id="authorize-button">授权访问Google Drive</button></div>';
+                document.getElementById('authorize-button').onclick = function() {
+                    gapi.auth2.getAuthInstance().signIn();
+                };
+            }
+        }
+        
+        // 获取文件夹中的图片
+        function listFilesInFolder() {
+            gapi.client.drive.files.list({
+                q: `'${FOLDER_ID}' in parents and mimeType contains 'image/'`,
+                fields: 'files(id, name, mimeType)',
+                orderBy: 'name'
+            }).then(function(response) {
+                const files = response.result.files;
+                if (files && files.length > 0) {
+                    // 将文件ID转换为可访问的URL
+                    imageUrls = files.map(file => `https://drive.google.com/uc?export=view&id=${file.id}`);
+                    // 加载图片
+                    loadImages();
+                } else {
+                    document.getElementById('gallery').innerHTML = '<p>未找到图片</p>';
+                }
+            });
+        }
         
         // 加载图片函数
         function loadImages() {
@@ -211,12 +321,28 @@
                 const link = document.createElement('a');
                 link.href = imageUrls[index];
                 link.setAttribute('data-lightbox', 'wedding-gallery');
-                link.setAttribute('data-title', `婚礼照片 ${index + 1}`);
+                
+                // 确保描述索引不超出范围
+                const descIndex = index % imageDescriptions.length;
+                link.setAttribute('data-title', `${imageDescriptions[descIndex].title} - ${imageDescriptions[descIndex].desc}`);
                 
                 const img = document.createElement('img');
                 img.className = 'lazy';
                 img.src = imageUrls[index];
-                img.alt = `婚礼照片 ${index + 1}`;
+                img.alt = imageDescriptions[descIndex].title;
+                
+                // 添加描述元素
+                const descDiv = document.createElement('div');
+                descDiv.className = 'image-desc';
+                
+                const title = document.createElement('h3');
+                title.textContent = imageDescriptions[descIndex].title;
+                
+                const desc = document.createElement('p');
+                desc.textContent = imageDescriptions[descIndex].desc;
+                
+                descDiv.appendChild(title);
+                descDiv.appendChild(desc);
                 
                 // 图片加载完成后显示
                 img.onload = function() {
@@ -227,6 +353,7 @@
                 
                 link.appendChild(img);
                 item.appendChild(link);
+                item.appendChild(descDiv);
                 gallery.appendChild(item);
                 
                 // 递归调用，加载下一张图片，添加随机延迟
@@ -240,7 +367,9 @@
         }
         
         // 初始加载
-        document.addEventListener('DOMContentLoaded', loadImages);
+        document.addEventListener('DOMContentLoaded', function() {
+            gapi.load('client:auth2', initClient);
+        });
         
         // 滚动加载更多
         const observer = new IntersectionObserver((entries) => {
@@ -275,6 +404,24 @@
             'wrapAround': true,
             'albumLabel': "图片 %1 / %2"
         });
+        
+        // 使用后端代理获取图片
+        function fetchImagesFromBackend() {
+            fetch('/api/drive-images?folderId=' + FOLDER_ID)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.images && data.images.length > 0) {
+                        imageUrls = data.images;
+                        loadImages();
+                    } else {
+                        document.getElementById('gallery').innerHTML = '<p>未找到图片</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('获取图片时出错:', error);
+                    document.getElementById('gallery').innerHTML = '<p>加载失败，请稍后再试</p>';
+                });
+        }
     </script>
 </body>
 </html> 
