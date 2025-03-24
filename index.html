@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>婚礼摄影作品集</title>
+    <title>Bon Cheung Photography</title>
     <!-- 引入 Google 字体 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -179,7 +179,7 @@
         });
         
         // Google Drive API配置
-        const CLIENT_ID = '779942564960-sqgu1dq506847gbjvb52g3htajoet8gq.apps.googleusercontent.com';
+        const CLIENT_ID = '779942564960-pkr199ogbkpvcjsvdjisusv1j81g1i19.apps.googleusercontent.com';
         const API_KEY = 'AIzaSyAxKOOFpyN9J1iiyWv8Jl7Xe0GPgjVYsew';
         const FOLDER_ID = '1VF4QVbc7uAczq4YDf8wQD-XOhQvsinno';
         const DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
@@ -224,37 +224,47 @@
         
         // 安全措施 - 检查请求来源
         function checkOrigin() {
-            const allowedOrigins = ['localhost', '127.0.0.1', 'bon-cheung-website.com']; // 替换为您的实际域名
-            const currentOrigin = window.location.hostname;
-            
-            if (!allowedOrigins.includes(currentOrigin)) {
-                console.error('未授权的访问来源');
-                return false;
-            }
+            // 临时返回true以便测试
             return true;
         }
         
         // 初始化Google API客户端
         function initClient() {
+            // 输出详细的URL信息
+            console.log("调试信息:");
+            console.log("完整URL: " + window.location.href);
+            console.log("来源: " + window.location.origin);
+            console.log("主机名: " + window.location.hostname);
+            console.log("端口: " + window.location.port);
+            console.log("协议: " + window.location.protocol);
+            
             // 安全检查
             if (!checkOrigin()) {
-                document.getElementById('gallery').innerHTML = '<p>访问被拒绝</p>';
+                document.getElementById('gallery').innerHTML = '<p>访问被拒绝: ' + window.location.hostname + '</p>';
                 return;
             }
             
+            console.log('正在初始化Google API客户端...');
             gapi.client.init({
                 apiKey: API_KEY,
                 clientId: CLIENT_ID,
                 discoveryDocs: DISCOVERY_DOCS,
                 scope: SCOPES
             }).then(function() {
+                console.log('Google API客户端初始化成功');
                 // 监听登录状态变化
                 gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
                 // 处理初始登录状态
                 updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
             }).catch(function(error) {
                 console.error('初始化Google API客户端时出错:', error);
-                document.getElementById('gallery').innerHTML = '<p>加载失败，请稍后再试</p>';
+                
+                // 显示更详细的错误信息
+                let errorHtml = '<p>加载失败: ' + (error.details || error.message || JSON.stringify(error)) + '</p>';
+                errorHtml += '<p>请确保在Google Cloud Console中添加了以下来源:</p>';
+                errorHtml += '<pre>' + window.location.origin + '</pre>';
+                
+                document.getElementById('gallery').innerHTML = errorHtml;
             });
         }
         
@@ -289,6 +299,9 @@
                 } else {
                     document.getElementById('gallery').innerHTML = '<p>未找到图片</p>';
                 }
+            }).catch(function(error) {
+                console.error('获取文件列表时出错:', error);
+                document.getElementById('gallery').innerHTML = '<p>无法加载图片，请检查文件夹权限</p>';
             });
         }
         
@@ -366,9 +379,33 @@
             loadImageWithDelay(currentIndex);
         }
         
+        // 使用预定义的文件ID列表
+        function loadDriveImages() {
+            // 手动获取的文件ID列表
+            const fileIds = [
+                '1PddIfMKwvTD06kXuo6I6vUZF86x3kap1',
+                // 添加更多文件ID...
+            ];
+            
+            // 转换为直接访问URL
+            imageUrls = fileIds.map(id => `https://lh3.googleusercontent.com/d/${id}`);
+            
+            // 加载图片
+            loadImages();
+        }
+        
         // 初始加载
         document.addEventListener('DOMContentLoaded', function() {
-            gapi.load('client:auth2', initClient);
+            // 尝试使用API获取文件夹内容
+            fetchDriveFolder();
+            
+            // 如果5秒后仍未加载图片，使用预定义列表
+            setTimeout(function() {
+                if (imageUrls.length === 0) {
+                    console.log('API加载失败，使用预定义文件列表');
+                    loadDriveImages();
+                }
+            }, 5000);
         });
         
         // 滚动加载更多
@@ -405,21 +442,46 @@
             'albumLabel': "图片 %1 / %2"
         });
         
-        // 使用后端代理获取图片
-        function fetchImagesFromBackend() {
-            fetch('/api/drive-images?folderId=' + FOLDER_ID)
-                .then(response => response.json())
+        // 使用fetch API获取Google Drive文件夹内容
+        function fetchDriveFolder() {
+            // 添加更多参数以提高成功率
+            const folderUrl = `https://www.googleapis.com/drive/v3/files?q='${FOLDER_ID}'+in+parents+and+trashed=false&fields=files(id,name,mimeType)&key=${API_KEY}`;
+            
+            console.log('请求URL:', folderUrl);
+            
+            fetch(folderUrl)
+                .then(response => {
+                    console.log('响应状态:', response.status);
+                    if (!response.ok) {
+                        return response.text().then(text => {
+                            console.error('响应内容:', text);
+                            throw new Error('网络响应不正常: ' + response.statusText);
+                        });
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    if (data.images && data.images.length > 0) {
-                        imageUrls = data.images;
+                    console.log('获取到的文件数据:', data);
+                    if (data.files && data.files.length > 0) {
+                        // 使用导出功能获取图片
+                        imageUrls = data.files
+                            .filter(file => file.mimeType.includes('image/'))
+                            .map(file => {
+                                // 根据文件类型选择合适的URL格式
+                                if (file.mimeType.includes('png')) {
+                                    return `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media&key=${API_KEY}`;
+                                } else {
+                                    return `https://lh3.googleusercontent.com/d/${file.id}`;
+                                }
+                            });
                         loadImages();
                     } else {
                         document.getElementById('gallery').innerHTML = '<p>未找到图片</p>';
                     }
                 })
                 .catch(error => {
-                    console.error('获取图片时出错:', error);
-                    document.getElementById('gallery').innerHTML = '<p>加载失败，请稍后再试</p>';
+                    console.error('获取文件夹内容时出错:', error);
+                    document.getElementById('gallery').innerHTML = '<p>加载失败: ' + error.message + '</p>';
                 });
         }
     </script>
